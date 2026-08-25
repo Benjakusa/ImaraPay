@@ -85,15 +85,26 @@ class WhatsAppBusinessAdapter:
             **message_payload,
         }
 
-        if self._sim:
+        # Resolve credentials dynamically if tenant is provided
+        phone_number_id = self._cfg['phone_number_id']
+        access_token = self._cfg['access_token']
+        sim_mode = self._sim
+
+        if tenant:
+            from apps.merchants.models import WhatsAppAccount
+            wa = WhatsAppAccount.objects.filter(tenant=tenant).first()
+            if wa and wa.access_token and wa.phone_number_id:
+                phone_number_id = wa.phone_number_id
+                access_token = wa.access_token
+                sim_mode = False
+
+        if sim_mode:
             logger.info(f"[SIM] WhatsApp → {to}: {json.dumps(message_payload, ensure_ascii=False)[:200]}")
             return {'success': True, 'simulated': True, 'to': to, 'payload': message_payload}
 
-        return self._call_send_api(payload, tenant=tenant)
+        return self._call_send_api_direct(payload, phone_number_id, access_token)
 
-    def _call_send_api(self, payload: dict, tenant=None) -> dict:
-        phone_number_id = self._cfg['phone_number_id']
-        access_token = self._cfg['access_token']
+    def _call_send_api_direct(self, payload: dict, phone_number_id: str, access_token: str) -> dict:
         url = f"{GRAPH_API_BASE}/{phone_number_id}/messages"
 
         try:
@@ -113,6 +124,19 @@ class WhatsAppBusinessAdapter:
         except requests.RequestException as e:
             logger.error(f"WhatsApp send error: {e}")
             return {'success': False, 'error': str(e)}
+
+    def _call_send_api(self, payload: dict, tenant=None) -> dict:
+        phone_number_id = self._cfg['phone_number_id']
+        access_token = self._cfg['access_token']
+
+        if tenant:
+            from apps.merchants.models import WhatsAppAccount
+            wa = WhatsAppAccount.objects.filter(tenant=tenant).first()
+            if wa and wa.access_token and wa.phone_number_id:
+                phone_number_id = wa.phone_number_id
+                access_token = wa.access_token
+
+        return self._call_send_api_direct(payload, phone_number_id, access_token)
 
     # ─── High-level helpers (kept from v2 for compatibility) ──────────────────
 
