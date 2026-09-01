@@ -1,0 +1,26 @@
+# ── ImaraPay Backend Dependencies ──────────────────────────────────────────────
+# Generated 2026-09-01. Pin versions to keep installs reproducible.
+# Update with: pip-compile requirements.in  (or bump manually and test)
+
+# Django core
+Django==4.2.30
+djangorestframework==3.15.2
+django-cors-headers==4.4.0
+dj-database-url==3.0.1
+
+# Async task queue
+celery[redis]==5.4.0
+redis==6.1.1
+
+# Production WSGI server
+gunicorn==21.2.0
+
+# Database drivers (optional — SQLite works out of the box for dev)
+# psycopg[binary]==3.2.3   # uncomment for PostgreSQL
+
+# Utilities
+asgiref==3.8.1
+sqlparse==0.5.5
+
+# Dev / CI tools (not installed in production Docker image)
+ruff==0.11.13

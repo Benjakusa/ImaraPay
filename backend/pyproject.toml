@@ -1,0 +1,25 @@
+[tool.ruff]
+# ImaraPay backend lint config
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# E = pycodestyle errors, F = pyflakes, W = pycodestyle warnings
+select = ["E", "F", "W"]
+
+# Ignore:
+# E501 - line too long (handled by line-length above)
+# F401 - imported but unused (some __init__.py re-exports)
+ignore = ["E501"]
+
+# Exclude Django migrations — auto-generated, no need to lint
+exclude = [
+    "*/migrations/*",
+    ".venv",
+    "__pycache__",
+]
+
+[tool.pytest.ini_options]
+# Keep for future pytest-django support
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["tests.py", "test_*.py", "*_test.py"]

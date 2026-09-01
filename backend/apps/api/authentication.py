@@ -1,6 +1,7 @@
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
+from django.utils.crypto import get_random_string
 
 User = get_user_model()
 
@@ -24,6 +25,6 @@ class BearerTokenAuthentication(BaseAuthentication):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            user = User.objects.create_user(username=username, email=f"{username}@imarapay.example", password="demo-password-2026")
+            user = User.objects.create_user(username=username, email=f"{username}@imarapay.example", password=get_random_string(32))
 
         return (user, None)

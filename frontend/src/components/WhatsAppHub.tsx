@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { MessageSquare, Send, CheckCircle2, Bot, Sparkles, UserCheck, ShieldAlert, Key, Plus, Trash2 } from 'lucide-react';
-import type { WhatsAppAccount, PhoneIdentity } from '../types';
+import type { WhatsAppAccount } from '../types';
 import { api } from '../services/api';
+import { usePhoneIdentities } from '../hooks/usePhoneIdentities';
 
 interface WhatsAppHubProps {
   whatsapp: WhatsAppAccount | null;
@@ -25,28 +26,21 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ whatsapp, onRefresh })
   ]);
   const [isSending, setIsSending] = useState(false);
 
-  // Phone identities state (for Staff tab)
-  const [identities, setIdentities] = useState<PhoneIdentity[]>([]);
-  const [newPhone, setNewPhone] = useState('');
-  const [newRole, setNewRole] = useState<'ADMIN' | 'STAFF'>('STAFF');
-  const [otpVerifyPhone, setOtpVerifyPhone] = useState<string | null>(null);
-  const [otpInput, setOtpInput] = useState('');
-  const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [staffError, setStaffError] = useState('');
-  const [staffSuccess, setStaffSuccess] = useState('');
-
-  const loadIdentities = async () => {
-    try {
-      const data = await api.getPhoneIdentities();
-      setIdentities(data);
-    } catch (err) {
-      console.error('Failed to load identities', err);
-    }
-  };
-
-  useEffect(() => {
-    loadIdentities();
-  }, []);
+  // Phone identities — all state & async handlers live in the shared hook
+  const {
+    identities,
+    newPhone, setNewPhone,
+    newRole, setNewRole,
+    otpVerifyPhone,
+    otpInput, setOtpInput,
+    devOtp,
+    staffError,
+    staffSuccess,
+    handleAddPhone,
+    handleVerifyOTP,
+    handleRevokePhone,
+    cancelOtp,
+  } = usePhoneIdentities();
 
   const handleSendCommand = async (e: React.FormEvent, customText?: string) => {
     if (e) e.preventDefault();
@@ -90,65 +84,6 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ whatsapp, onRefresh })
     }
   };
 
-  // Staff Management Form Actions
-  const handleAddPhone = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStaffError('');
-    setStaffSuccess('');
-    setDevOtp(null);
-
-    if (!newPhone.trim()) {
-      setStaffError('Please enter a phone number');
-      return;
-    }
-
-    try {
-      const res = await api.bindPhoneIdentity(newPhone, newRole);
-      setOtpVerifyPhone(newPhone);
-      setStaffSuccess(res.message || 'OTP sent successfully!');
-      if (res.dev_otp) {
-        setDevOtp(res.dev_otp);
-      }
-    } catch (err: any) {
-      setStaffError(err.response?.data?.error || 'Failed to bind phone number');
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStaffError('');
-    setStaffSuccess('');
-
-    if (!otpVerifyPhone || !otpInput) return;
-
-    try {
-      await api.confirmPhoneOTP(otpVerifyPhone, otpInput);
-      setStaffSuccess(`Successfully verified and linked ${otpVerifyPhone}!`);
-      setOtpVerifyPhone(null);
-      setOtpInput('');
-      setNewPhone('');
-      setDevOtp(null);
-      loadIdentities();
-    } catch (err: any) {
-      setStaffError(err.response?.data?.error || 'Invalid or expired OTP');
-    }
-  };
-
-  const handleRevokePhone = async (id: string) => {
-    setStaffError('');
-    setStaffSuccess('');
-
-    if (!confirm('Are you sure you want to revoke this phone identity?')) return;
-
-    try {
-      await api.revokePhoneIdentity(id);
-      setStaffSuccess('Phone number access revoked.');
-      loadIdentities();
-    } catch (err: any) {
-      setStaffError(err.response?.data?.error || 'Failed to revoke phone number');
-    }
-  };
-
   const handleInteractiveClick = (actionId: string) => {
     // Map interactive reply to command text
     if (actionId === 'confirm') {
@@ -188,21 +123,19 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ whatsapp, onRefresh })
       <div className="flex border-b border-slate-800 gap-4">
         <button
           onClick={() => setActiveSubTab('simulator')}
-          className={`pb-2.5 text-xs font-semibold border-b-2 transition cursor-pointer ${
-            activeSubTab === 'simulator'
+          className={`pb-2.5 text-xs font-semibold border-b-2 transition cursor-pointer ${activeSubTab === 'simulator'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+            }`}
         >
           WhatsApp Merchant Bot Simulator
         </button>
         <button
           onClick={() => setActiveSubTab('staff')}
-          className={`pb-2.5 text-xs font-semibold border-b-2 transition cursor-pointer ${
-            activeSubTab === 'staff'
+          className={`pb-2.5 text-xs font-semibold border-b-2 transition cursor-pointer ${activeSubTab === 'staff'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+            }`}
         >
           Linked Phone Numbers (Staff)
         </button>
@@ -304,11 +237,10 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ whatsapp, onRefresh })
                   className={`flex flex-col ${msg.sender === 'merchant' ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`max-w-md p-3.5 rounded-2xl text-xs whitespace-pre-wrap ${
-                      msg.sender === 'merchant'
+                    className={`max-w-md p-3.5 rounded-2xl text-xs whitespace-pre-wrap ${msg.sender === 'merchant'
                         ? 'bg-emerald-700 text-white rounded-tr-none shadow-md'
                         : 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700 shadow-md'
-                    }`}
+                      }`}
                   >
                     {msg.text}
 
@@ -488,11 +420,7 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ whatsapp, onRefresh })
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setOtpVerifyPhone(null);
-                      setStaffSuccess('');
-                      setDevOtp(null);
-                    }}
+                    onClick={cancelOtp}
                     className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-950 text-slate-300 border border-slate-800 transition text-xs cursor-pointer"
                   >
                     Cancel
@@ -525,11 +453,10 @@ export const WhatsAppHub: React.FC<WhatsAppHubProps> = ({ whatsapp, onRefresh })
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-white">{id.phone_number}</span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                            id.role === 'OWNER' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
-                            id.role === 'ADMIN' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
-                            'bg-slate-500/10 text-slate-400 border border-slate-500/20'
-                          }`}>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${id.role === 'OWNER' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' :
+                              id.role === 'ADMIN' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                                'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                            }`}>
                             {id.role}
                           </span>
                         </div>

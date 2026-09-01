@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: imarapay
+      POSTGRES_USER: imarapay
+      POSTGRES_PASSWORD: imarapay_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U imarapay" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: docker-dev-secret-key-not-for-production
+      DEBUG: "True"
+      DATABASE_URL: postgres://imarapay:imarapay_dev@db:5432/imarapay
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: http://localhost:5173
+      WHATSAPP_PHONE_NUMBER_ID: ""
+      WHATSAPP_ACCESS_TOKEN: ""
+      WHATSAPP_VERIFY_TOKEN: imara-dev-verify
+      WHATSAPP_APP_SECRET: ""
+      CONFIRMATION_THRESHOLD_MINOR: "1000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app # live-reload in dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app # live-reload in dev
+      - /app/node_modules # keep container node_modules separate
+
+volumes:
+  postgres_data:

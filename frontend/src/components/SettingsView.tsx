@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Building, Key, Save, Check, UserCheck, Trash2, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import type { MerchantProfile, PaymentProviderAccount, PhoneIdentity } from '../types';
+import type { MerchantProfile, PaymentProviderAccount } from '../types';
 import { api } from '../services/api';
+import { usePhoneIdentities } from '../hooks/usePhoneIdentities';
 
 interface SettingsViewProps {
   profile: MerchantProfile | null;
@@ -16,28 +17,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, provider, o
   const [settlementNumber, setSettlementNumber] = useState(profile?.settlement_number || '522522');
   const [isSaved, setIsSaved] = useState(false);
 
-  // Staff Phone Identities State
-  const [identities, setIdentities] = useState<PhoneIdentity[]>([]);
-  const [newPhone, setNewPhone] = useState('');
-  const [newRole, setNewRole] = useState<'ADMIN' | 'STAFF'>('STAFF');
-  const [otpVerifyPhone, setOtpVerifyPhone] = useState<string | null>(null);
-  const [otpInput, setOtpInput] = useState('');
-  const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [staffError, setStaffError] = useState('');
-  const [staffSuccess, setStaffSuccess] = useState('');
-
-  const loadIdentities = async () => {
-    try {
-      const data = await api.getPhoneIdentities();
-      setIdentities(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    loadIdentities();
-  }, []);
+  // Phone identities — all state & async handlers live in the shared hook
+  const {
+    identities,
+    newPhone, setNewPhone,
+    newRole, setNewRole,
+    otpVerifyPhone,
+    otpInput, setOtpInput,
+    devOtp,
+    staffError,
+    staffSuccess,
+    handleAddPhone,
+    handleVerifyOTP,
+    handleRevokePhone,
+  } = usePhoneIdentities();
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,64 +38,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ profile, provider, o
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2500);
     onRefresh();
-  };
-
-  const handleAddPhone = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStaffError('');
-    setStaffSuccess('');
-    setDevOtp(null);
-
-    if (!newPhone.trim()) {
-      setStaffError('Please enter a phone number');
-      return;
-    }
-
-    try {
-      const res = await api.bindPhoneIdentity(newPhone, newRole);
-      setOtpVerifyPhone(newPhone);
-      setStaffSuccess(res.message || 'OTP sent successfully!');
-      if (res.dev_otp) {
-        setDevOtp(res.dev_otp);
-      }
-    } catch (err: any) {
-      setStaffError(err.response?.data?.error || 'Failed to bind phone number');
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStaffError('');
-    setStaffSuccess('');
-
-    if (!otpVerifyPhone || !otpInput) return;
-
-    try {
-      await api.confirmPhoneOTP(otpVerifyPhone, otpInput);
-      setStaffSuccess(`Successfully verified and linked ${otpVerifyPhone}!`);
-      setOtpVerifyPhone(null);
-      setOtpInput('');
-      setNewPhone('');
-      setDevOtp(null);
-      loadIdentities();
-    } catch (err: any) {
-      setStaffError(err.response?.data?.error || 'Invalid or expired OTP');
-    }
-  };
-
-  const handleRevokePhone = async (id: string) => {
-    setStaffError('');
-    setStaffSuccess('');
-
-    if (!confirm('Are you sure you want to revoke this phone identity?')) return;
-
-    try {
-      await api.revokePhoneIdentity(id);
-      setStaffSuccess('Phone number access revoked.');
-      loadIdentities();
-    } catch (err: any) {
-      setStaffError(err.response?.data?.error || 'Failed to revoke phone number');
-    }
   };
 
   return (
